@@ -112,6 +112,7 @@
 #include <mach/rpm-regulator.h>
 #include <mach/restart.h>
 #include <mach/cable_detect.h>
+#include <linux/msm_tsens.h>
 
 #include "board-shooter.h"
 #include "devices.h"
@@ -436,9 +437,9 @@ static struct msm_spm_platform_data msm_spm_data[] __initdata = {
 
 #ifdef CONFIG_PERFLOCK
 static unsigned shooter_perf_acpu_table[] = {
-	384000000,
-	756000000,
-	1188000000,
+	540000000,
+	1026000000,
+	1512000000,
 };
 
 static struct perflock_platform_data shooter_perflock_data = {
@@ -530,6 +531,9 @@ static struct platform_device smsc911x_device = {
 		defined(CONFIG_CRYPTO_DEV_QCRYPTO_MODULE) || \
 		defined(CONFIG_CRYPTO_DEV_QCEDEV) || \
 		defined(CONFIG_CRYPTO_DEV_QCEDEV_MODULE)
+
+#define QCE_SIZE		0x10000
+#define QCE_0_BASE		0x18500000
 
 #define QCE_HW_KEY_SUPPORT	0
 #define QCE_SHA_HMAC_SUPPORT	0
@@ -1153,7 +1157,7 @@ static void msm_hsusb_vbus_power(bool on)
 static int shooter_phy_init_seq[] = { 0x06, 0x36, 0x0C, 0x31, 0x31, 0x32, 0x1, 0x0E, 0x1, 0x11, -1 };
 static struct msm_otg_platform_data msm_otg_pdata = {
 	.phy_init_seq		= shooter_phy_init_seq,
-	.mode			= USB_PERIPHERAL,
+	.mode			= USB_OTG,
 	.otg_control		= OTG_PMIC_CONTROL,
 	.phy_type		= SNPS_28NM_INTEGRATED_PHY,
 	.vbus_power		= msm_hsusb_vbus_power,
@@ -3094,17 +3098,11 @@ static struct platform_device *early_devices[] __initdata = {
 #endif
 };
 
-<<<<<<< HEAD
-static struct platform_device msm_tsens_device = {
-	.name   = "tsens-tm",
-	.id = -1,
-=======
 static struct tsens_platform_data pyr_tsens_pdata = {
 	.tsens_factor = 1000,
 	.hw_type = MSM_8660,
 	.tsens_num_sensor = 1,
 	.slope = 702,
->>>>>>> 2bc35be... shooter: add ION support
 };
 
 #ifdef CONFIG_SENSORS_MSM_ADC
@@ -3747,6 +3745,7 @@ static struct platform_device *shooter_devices[] __initdata = {
 #endif
 
 	&msm_device_otg,
+	&msm_device_hsusb_host,
 #ifdef CONFIG_BATTERY_MSM
 	&msm_batt_device,
 #endif
@@ -3814,7 +3813,6 @@ static struct platform_device *shooter_devices[] __initdata = {
 	&msm_device_rng,
 #endif
 
-	&msm_tsens_device,
 	&msm_rpm_device,
 	&cable_detect_device,
 #ifdef CONFIG_BT
@@ -6575,12 +6573,9 @@ static void __init msm8x60_init(struct msm_board_data *board_data)
 
 	raw_speed_bin = readl(QFPROM_SPEED_BIN_ADDR);
 	speed_bin = raw_speed_bin & 0xF;
-<<<<<<< HEAD
-=======
 
 	msm_tsens_early_init(&pyr_tsens_pdata);
 
->>>>>>> 2bc35be... shooter: add ION support
 	/*
 	 * Initialize RPM first as other drivers and devices may need
 	 * it for their initialization.

@@ -1366,6 +1366,12 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 	if (cmd_dma != (u64) cmd_dequeue_dma) {
 		xhci->error_bitmask |= 1 << 5;
 		return;
+		/* There is no command to handle if we get a stop event when the
+		 * command ring is empty, event->cmd_trb points to the next
+		 * unset command
+		 */
+		if (xhci->cmd_ring->dequeue == xhci->cmd_ring->enqueue)
+			return;
 	}
 
 	if ((GET_COMP_CODE(le32_to_cpu(event->status)) == COMP_CMD_ABORT) ||
@@ -1381,12 +1387,6 @@ static void handle_cmd_completion(struct xhci_hcd *xhci,
 			inc_deq(xhci, xhci->cmd_ring, false);
 			return;
 		}
-		/* There is no command to handle if we get a stop event when the
-		 * command ring is empty, event->cmd_trb points to the next
-		 * unset command
-		 */
-		if (xhci->cmd_ring->dequeue == xhci->cmd_ring->enqueue)
-			return;
 	}
 
 	switch (le32_to_cpu(xhci->cmd_ring->dequeue->generic.field[3])

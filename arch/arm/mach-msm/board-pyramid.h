@@ -27,11 +27,6 @@
 #define MSM_RAM_CONSOLE_BASE	MSM_HTC_RAM_CONSOLE_PHYS
 #define MSM_RAM_CONSOLE_SIZE	MSM_HTC_RAM_CONSOLE_SIZE
 
-<<<<<<< HEAD
-/* Memory map */
-
-=======
->>>>>>> cb2206d... pyramid: ION support
 #if defined(CONFIG_CRYPTO_DEV_QCRYPTO) || \
 		defined(CONFIG_CRYPTO_DEV_QCRYPTO_MODULE) || \
 		defined(CONFIG_CRYPTO_DEV_QCEDEV) || \
@@ -40,53 +35,14 @@
 #define QCE_0_BASE		0x18500000
 #endif
 
-<<<<<<< HEAD
-#ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
-#define MSM_FB_PRIM_BUF_SIZE (960 * ALIGN(540, 32) * 4 * 3) /* 4 bpp x 3 pages */
-#else
-#define MSM_FB_PRIM_BUF_SIZE (960 * ALIGN(540, 32) * 4 * 2) /* 4 bpp x 2 pages */
-#endif
-
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
-#define MSM_FB_EXT_BUF_SIZE  (1920 * 1080 * 2 * 1) /* 2 bpp x 1 page */
-#else
-#define MSM_FB_EXT_BUFT_SIZE	0
-#endif
-
-#ifdef CONFIG_FB_MSM_OVERLAY_WRITEBACK
-/* width x height x 3 bpp x 2 frame buffer */
-#define MSM_FB_WRITEBACK_SIZE roundup(960 * ALIGN(540, 32) * 3 * 2, 4096)
-#define MSM_FB_WRITEBACK_OFFSET 0
-#else
-#define MSM_FB_WRITEBACK_SIZE	0
-#define MSM_FB_WRITEBACK_OFFSET 0
-#endif
-
-/* Note: must be multiple of 4096 */
-#define MSM_FB_SIZE roundup(MSM_FB_PRIM_BUF_SIZE + MSM_FB_EXT_BUF_SIZE, 4096)
-
-#define MSM_PMEM_MDP_SIZE	0x2000000
-#define MSM_PMEM_ADSP_SIZE	0x23AC000
-#define MSM_PMEM_ADSP2_SIZE	0x654000 /* 1152 * 1920 * 1.5 * 2 */
-#define MSM_PMEM_AUDIO_SIZE	0x239000
-#define MSM_PMEM_KERNEL_EBI1_SIZE	0xC7000
-
-#define MSM_FB_WRITEBACK_BASE	(0x45C00000)
-#define MSM_PMEM_AUDIO_BASE	(0x46400000)
-#define MSM_PMEM_ADSP_BASE	(0x40400000)
-#define MSM_PMEM_ADSP2_BASE	(MSM_PMEM_ADSP_BASE + MSM_PMEM_ADSP_SIZE)
-#define MSM_FB_BASE		(0x70000000 - MSM_FB_SIZE)
-#define MSM_PMEM_MDP_BASE	(0x6D600000)
-#define MSM_PMEM_KERNEL_EBI1_BASE	(MSM_PMEM_AUDIO_BASE + MSM_PMEM_AUDIO_SIZE)
-=======
 /*** Memory map ***/
-#define MSM_ION_HEAP_NUM      4
+#define MSM_ION_HEAP_NUM      5
 
 #define MSM_FB_SIZE roundup((960 * ALIGN(540, 32) * 4 * 3) + 0x3F4800, 4096)
 
 // PMEM SMI
 #define MSM_SMI_SIZE          0x4000000
-#define KERNEL_SMI_SIZE       0x600000
+#define KERNEL_SMI_SIZE       0xE00000
 #define USER_SMI_SIZE         (MSM_SMI_SIZE - KERNEL_SMI_SIZE)
 #define MSM_PMEM_SMIPOOL_SIZE USER_SMI_SIZE
 
@@ -95,13 +51,12 @@
 #define MSM_PMEM_ADSP_SIZE    0x1800000
 
 // ION SMI
-#define MSM_ION_MM_SIZE       0x3000000
-#define MSM_SMI_ION_SIZE      0x3200000
->>>>>>> cb2206d... pyramid: ION support
+#define MSM_ION_MM_SIZE       0x3500000
 
 // ION
-#define MSM_ION_WB_SIZE       0x2FD000
-#define MSM_ION_SF_SIZE       0x2900000
+#define MSM_ION_WB_SIZE       0x800000
+#define MSM_ION_SF_SIZE       0x29A0000
+#define MSM_ION_MM_FW_SIZE    0x200000
 
 // Base addresses
 #define MSM_SMI_BASE          (0x38000000)
@@ -109,20 +64,16 @@
 #define USER_SMI_BASE         (KERNEL_SMI_BASE + KERNEL_SMI_SIZE)
 #define MSM_PMEM_SMIPOOL_BASE USER_SMI_BASE
 #define MSM_ION_SF_BASE       (0x40400000)
-#define MSM_ION_WB_BASE       (0x45C00000)
 #define MSM_PMEM_AUDIO_BASE   (0x46400000)
-#define MSM_ION_MM_BASE       (0x6B600000)
-#define MSM_SMI_ION_BASE      (0x6B600000)
+#define MSM_ION_WB_BASE       (0x6A900000)
+#define MSM_ION_MM_FW_BASE    (0x6B100000)
+#define MSM_ION_MM_BASE       (0x6B300000)
 #define MSM_PMEM_ADSP_BASE    (0x6E800000)
 
 // Userspace allocation
 #define PHY_BASE_ADDR1  0x48000000
-<<<<<<< HEAD
-#define SIZE_ADDR1      0x25600000
-=======
-#define SIZE_ADDR1      0x23600000
+#define SIZE_ADDR1      0x22100000
 /*** END Memory map ***/
->>>>>>> cb2206d... pyramid: ION support
 
 /* GPIO definition */
 
@@ -169,9 +120,11 @@
 #define PYRAMID_GPIO_BT_RESET_N        (142)
 
 /* USB */
+#define PYRAMID_GPIO_MHL_WAKE_UP        (62)
 #define PYRAMID_GPIO_USB_ID        (63)
 #define PYRAMID_GPIO_MHL_RESET        (70)
 #define PYRAMID_GPIO_MHL_INT        (71)
+#define PYRAMID_GPIO_MHL_USB_EN         (139)
 #define PYRAMID_GPIO_MHL_USB_SWITCH        (99)
 
 /* Camera */

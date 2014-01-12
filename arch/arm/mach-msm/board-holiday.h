@@ -16,6 +16,7 @@
 #define __ARCH_ARM_MACH_MSM_BOARD_HOLIDAY_H
 
 #include <mach/board.h>
+#include <mach/msm_memtypes.h>
 
 #define HOLIDAY_PROJECT_NAME	"holiday"
 
@@ -35,98 +36,20 @@
 /*** Memory map ***/
 #define MSM_ION_HEAP_NUM      5
 
-<<<<<<< HEAD
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
-#define MSM_FB_SIZE roundup(MSM_FB_PRIM_BUF_SIZE + 0x3F4800 + MSM_FB_DSUB_PMEM_ADDER, 4096)
-#elif defined(CONFIG_FB_MSM_TVOUT)
-#define MSM_FB_SIZE roundup(MSM_FB_PRIM_BUF_SIZE + 0x195000 + MSM_FB_DSUB_PMEM_ADDER, 4096)
-#else 
-#define MSM_FB_SIZE roundup(MSM_FB_PRIM_BUF_SIZE + MSM_FB_DSUB_PMEM_ADDER, 4096)
-#endif 
-
-#define MSM_FB_BASE                                (0x40400000)
-
-/* PMEM memory map */
-#define MSM_PMEM_ADSP_SIZE        0x1800000
-#define MSM_PMEM_AUDIO_SIZE        0x239000
-
-#define MSM_PMEM_ADSP_BASE                (0x80000000 - MSM_PMEM_ADSP_SIZE)
-#define MSM_PMEM_AUDIO_BASE                (0x46400000)
-/* END */
-=======
 #define MSM_FB_SIZE roundup((960 * ALIGN(540, 32) * 4 * 3) + 0x3F4800, 4096)
->>>>>>> 2a397c7... holiday: ION: rebase and cleanup.
 
 // PMEM SMI
 #define MSM_SMI_SIZE          0x4000000
-<<<<<<< HEAD
-<<<<<<< HEAD
-
-#define KERNEL_SMI_BASE       (MSM_SMI_BASE)
-#define KERNEL_SMI_SIZE       0x400000
-
-#define USER_SMI_BASE         (KERNEL_SMI_BASE + KERNEL_SMI_SIZE)
-=======
-#define KERNEL_SMI_SIZE       0x600000
->>>>>>> 2a397c7... holiday: ION: rebase and cleanup.
-=======
 #define KERNEL_SMI_SIZE       0xE00000
->>>>>>> 18669ef... holiday: increase PMEM SMI size
 #define USER_SMI_SIZE         (MSM_SMI_SIZE - KERNEL_SMI_SIZE)
 #define MSM_PMEM_SMIPOOL_SIZE USER_SMI_SIZE
 
-<<<<<<< HEAD
-#define MSM_PMEM_KERNEL_EBI1_SIZE  0x600000 
-
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-<<<<<<< HEAD
-<<<<<<< HEAD
-#define MSM_ION_SF_SIZE       0x4000000
-#define MSM_ION_MM_FW_SIZE    0x200000  
-#define MSM_ION_MM_SIZE       0x3D00000 
-#define MSM_ION_MFC_SIZE      0x100000  
-#define MSM_ION_WB_SIZE       0x2FD000  
-=======
-#define MSM_ION_MM_SIZE         0x2C00000
-=======
-#define MSM_ION_MM_SIZE         0x2D00000
->>>>>>> c8c76c6... holiday: increase ION_MM heap size by 1Mb (credit: sultanxda)
-#define MSM_ION_SF_SIZE         0x2800000
-#define MSM_ION_WB_SIZE         0x2FD000
-#define MSM_SMI_ION_SIZE        0x3000000
-
-#define MSM_ION_SF_BASE         0x7C600000
-#define MSM_SMI_ION_BASE        0x40400000
-#define MSM_ION_MM_BASE         0x40400000
-
-<<<<<<< HEAD
-
->>>>>>> 2af6afd... holiday: update ION memory heaps for new vidc changes.
-
-=======
->>>>>>> 2bef160... holiday: fixup ION_HEAP_NUM ifdef
-#ifdef CONFIG_TZCOM
-#define MSM_ION_QSECOM_SIZE   MSM_PMEM_KERNEL_EBI1_SIZE
-#ifdef CONFIG_MSM_IOMMU
-#define MSM_ION_HEAP_NUM      4
-#else
-#define MSM_ION_HEAP_NUM      5
-#endif
-#else
-#ifdef CONFIG_MSM_IOMMU
-#define MSM_ION_HEAP_NUM      3
-#else
-#define MSM_ION_HEAP_NUM      4
-#endif
-#endif
-=======
 // PMEM
 #define MSM_PMEM_AUDIO_SIZE   0x239000
 #define MSM_PMEM_ADSP_SIZE    0x1800000
 
 // ION SMI
 #define MSM_ION_MM_SIZE       0x3500000
->>>>>>> 2a397c7... holiday: ION: rebase and cleanup.
 
 // ION
 #define MSM_ION_WB_SIZE       0x800000
@@ -147,17 +70,8 @@
 
 // Userspace allocation
 #define PHY_BASE_ADDR1  0x48000000
-<<<<<<< HEAD
-<<<<<<< HEAD
-#define SIZE_ADDR1        0x34600000
-=======
-#define SIZE_ADDR1      0x32900000
-//#define SIZE_ADDR1      0x2B300000
-=======
 #define SIZE_ADDR1      0x32000000
->>>>>>> 243c843... holiday: correct userspace memory allocation after PMEM SMI increase
 /*** END Memory map ***/
->>>>>>> 2a397c7... holiday: ION: rebase and cleanup.
 
 extern int panel_type;
 

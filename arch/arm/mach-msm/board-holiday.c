@@ -91,6 +91,7 @@
 #ifdef CONFIG_BT
 #include <mach/htc_bdaddress.h>
 #endif
+#include <mach/htc_usb.h>
 #include <mach/gpiomux.h>
 #ifdef CONFIG_MSM_DSPS
 #include <mach/msm_dsps.h>
@@ -105,7 +106,7 @@
 #include <linux/i2c/isl9519.h>
 #include <mach/tpa2051d3.h>
 #ifdef CONFIG_USB_G_ANDROID
-#include <linux/usb/android.h>
+#include <linux/usb/android_composite.h>
 #include <mach/usbdiag.h>
 #endif
 #include <linux/regulator/consumer.h>
@@ -116,6 +117,7 @@
 #include <mach/restart.h>
 #include <mach/cable_detect.h>
 #include <mach/panel_id.h>
+#include <linux/msm_tsens.h>
 
 #include "board-holiday.h"
 #include "devices.h"
@@ -339,6 +341,17 @@ unsigned int holiday_get_engineerid(void)
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
 int set_two_phase_freq(int cpufreq);
 #endif
+#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
+int id_set_two_phase_freq(int cpufreq);
+#endif
+
+#ifdef CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE
+int set_two_phase_freq_badass(int cpufreq);
+#endif
+
+#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
+int set_three_phase_freq_badass(int cpufreq);
+#endif
 
 #ifdef CONFIG_MMC_MSM_SDC2_SUPPORT
 static void (*sdc2_status_notify_cb)(int card_present, void *dev_id);
@@ -473,18 +486,27 @@ static struct msm_spm_platform_data msm_spm_data[] __initdata = {
 };
 
 #ifdef CONFIG_PERFLOCK
-static unsigned holiday_perf_acpu_table_1188k[] = {
+static unsigned holiday_perf_acpu_table[] = {
 	384000000,
 	756000000,
 	1188000000,
 };
-static unsigned holiday_perf_acpu_table_1512k[] = {
-	540000000,
-	1026000000,
-	1512000000,
+
+static struct perflock_platform_data holiday_perflock_data = {
+	.perf_acpu_table = holiday_perf_acpu_table,
+	.table_size = ARRAY_SIZE(holiday_perf_acpu_table),
 };
 
-static struct perflock_platform_data holiday_perflock_data;
+static unsigned holiday_cpufreq_ceiling_acpu_table[] = {
+	-1,
+	-1,
+	1026000000,
+};
+
+static struct perflock_platform_data holiday_cpufreq_ceiling_data = {
+	.perf_acpu_table = holiday_cpufreq_ceiling_acpu_table,
+	.table_size = ARRAY_SIZE(holiday_cpufreq_ceiling_acpu_table),
+};
 #endif
 
 /*
@@ -502,8 +524,8 @@ static struct regulator_init_data saw_s0_init_data = {
 		.constraints = {
 			.name = "8901_s0",
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-			.min_uV = 840000,
-			.max_uV = 1250000,
+			.min_uV = 700000,
+			.max_uV = 1450000,
 		},
 		.consumer_supplies = vreg_consumers_8901_S0,
 		.num_consumer_supplies = ARRAY_SIZE(vreg_consumers_8901_S0),
@@ -513,8 +535,8 @@ static struct regulator_init_data saw_s1_init_data = {
 		.constraints = {
 			.name = "8901_s1",
 			.valid_ops_mask = REGULATOR_CHANGE_VOLTAGE,
-			.min_uV = 840000,
-			.max_uV = 1250000,
+			.min_uV = 700000,
+			.max_uV = 1450000,
 		},
 		.consumer_supplies = vreg_consumers_8901_S1,
 		.num_consumer_supplies = ARRAY_SIZE(vreg_consumers_8901_S1),
@@ -1225,7 +1247,7 @@ static void msm_hsusb_vbus_power(bool on)
 static int holiday_phy_init_seq[] = { 0x06, 0x36, 0x0C, 0x31, 0x31, 0x32, 0x1, 0x0E, 0x1, 0x11, -1 };
 static struct msm_otg_platform_data msm_otg_pdata = {
 	.phy_init_seq		= holiday_phy_init_seq,
-	.mode			= USB_PERIPHERAL,
+	.mode			= USB_OTG,
 	.otg_control		= OTG_PMIC_CONTROL,
 	.phy_type		= CI_45NM_INTEGRATED_PHY,
 	.vbus_power		= msm_hsusb_vbus_power,
@@ -1406,7 +1428,21 @@ static int usb_diag_update_pid_and_serial_num(uint32_t pid, const char *snum)
 }
 
 static struct android_usb_platform_data android_usb_pdata = {
+	.vendor_id	= 0x0BB4,
+	.product_id	= 0x0cbb,
+	.version	= 0x0100,
+	.product_name		= "Android Phone",
+	.manufacturer_name	= "HTC",
+	.num_products = ARRAY_SIZE(usb_products),
+	.products = usb_products,
+	.num_functions = ARRAY_SIZE(usb_functions_all),
+	.functions = usb_functions_all,
+	.enable_fast_charge = NULL,
 	.update_pid_and_serial_num = usb_diag_update_pid_and_serial_num,
+	.fserial_init_string = "sdio:modem,tty,tty,tty:serial",
+	.usb_id_pin_gpio = HOLIDAY_GPIO_USB_ID,
+	.RndisDisableMPDecision = true,
+	.nluns = 2,
 };
 
 static struct platform_device android_usb_device = {
@@ -1437,6 +1473,7 @@ void holiday_enable_fast_charge(bool enable)
 
 static int __init board_serialno_setup(char *serialno)
 {
+	android_usb_pdata.serial_number = serialno;
 	return 1;
 }
 __setup("androidboot.serialno=", board_serialno_setup);
@@ -1444,8 +1481,17 @@ __setup("androidboot.serialno=", board_serialno_setup);
 static void holiday_add_usb_devices(void)
 {
 	printk(KERN_INFO "%s rev: %d\n", __func__, system_rev);
+	android_usb_pdata.products[0].product_id =
+		android_usb_pdata.product_id;
 
 	config_holiday_mhl_gpios();
+
+	/* diag bit set */
+	if (get_radio_flag() & 0x20000) {
+		android_usb_pdata.diag_init = 1;
+		android_usb_pdata.modem_init = 1;
+		android_usb_pdata.rmnet_init = 1;
+	}
 
 	msm_device_gadget_peripheral.dev.parent = &msm_device_otg.dev;
 	platform_device_register(&msm_device_gadget_peripheral);
@@ -1749,7 +1795,7 @@ static struct msm_camera_sensor_flash_src msm_flash_src = {
 
 static struct camera_flash_cfg msm_camera_sensor_flash_cfg = {
 	.low_temp_limit		= 5,
-	.low_cap_limit		= 15,
+	.low_cap_limit		= 5,
 };
 
 #ifdef CONFIG_S5K3H2YX
@@ -2170,166 +2216,6 @@ static void __init msm8x60_init_dsps(void)
 }
 #endif /* CONFIG_MSM_DSPS */
 
-<<<<<<< HEAD
-#ifdef CONFIG_FB_MSM_LCDC_DSUB
-/* VGA = 1440 x 900 x 4(bpp) x 2(pages)
-   prim = 1024 x 600 x 4(bpp) x 2(pages)
-   This is the difference. */
-#define MSM_FB_DSUB_PMEM_ADDER (0x9E3400-0x4B0000)
-#else
-#define MSM_FB_DSUB_PMEM_ADDER (0)
-#endif
-
-#ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
-<<<<<<< HEAD
-<<<<<<< HEAD
-#define MSM_FB_PRIM_BUF_SIZE (960 * ALIGN(540, 32) * 4 * 3) /* 4 bpp x 3 pages */
-#else
-#define MSM_FB_PRIM_BUF_SIZE (960 * ALIGN(540, 32) * 4 * 2) /* 4 bpp x 2 pages */
-#endif
-
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
-#define MSM_FB_EXT_BUF_SIZE  (1920 * 1080 * 2 * 1) /* 2 bpp x 1 page */
-=======
-/* prim = 960 x 540 x 4(bpp) x 3(pages) */
-=======
->>>>>>> 2aba475... holiday: fixup the memory mapping to stop the FB trashing
-#define MSM_FB_PRIM_BUF_SIZE \
-                (roundup((960 * 540 * 4), 4096) * 3) /* 4 bpp x 3 pages */ /*0x5F1000*/
-#else
-#define MSM_FB_PRIM_BUF_SIZE \
-                (roundup((960 * 540 * 4), 4096) * 2) /* 4 bpp x 2 pages */ /*0x3F6000*/
-#endif
-
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
-#define MSM_FB_EXT_BUF_SIZE  \
-                (roundup((1920 * 1080 * 2), 4096) * 1) /* 2 bpp x 1 page */ /*0x3F5000*/
-#else
-#define MSM_FB_EXT_BUF_SIZE        0
-#endif
-
-#ifdef CONFIG_FB_MSM_OVERLAY_WRITEBACK
-/* width x height x 3 bpp x 2 frame buffer */
-<<<<<<< HEAD
-#define MSM_FB_WRITEBACK_SIZE roundup(960 * ALIGN(540, 32) * 3 * 2, 4096)
->>>>>>> cc00d7b... holiday: Add ION support
-=======
-#define MSM_FB_WRITEBACK_SIZE 0x2F8000 /*roundup((960 * 540 * 3 * 2), 4096)*/
-#define MSM_FB_WRITEBACK_OFFSET 0
->>>>>>> 2aba475... holiday: fixup the memory mapping to stop the FB trashing
-#else
-#define MSM_FB_WRITEBACK_SIZE   0
-#define MSM_FB_WRITEBACK_OFFSET 0
-#endif
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-#ifdef CONFIG_FB_MSM_OVERLAY_WRITEBACK
-/* width x height x 3 bpp x 2 frame buffer */
-#define MSM_FB_WRITEBACK_SIZE roundup(960 * ALIGN(540, 32) * 3 * 2, 4096)
-#define MSM_FB_WRITEBACK_OFFSET 0
-#else
-#define MSM_FB_WRITEBACK_SIZE   0
-#define MSM_FB_WRITEBACK_OFFSET 0
-#endif
-=======
-/* Note: must be a multiple of 4096 */
-=======
-/* Note: must be multiple of 4096 */
->>>>>>> 2aba475... holiday: fixup the memory mapping to stop the FB trashing
-#define MSM_FB_SIZE 0x6F0000
-
-/* Kernel SMI PMEM Region for video core, used for Firmware */
-/* and encoder,decoder scratch buffers */
-/* Kernel SMI PMEM Region Should always precede the user space */
-/* SMI PMEM Region, as the video core will use offset address */
-/* from the Firmware base */
-<<<<<<< HEAD
-#define KERNEL_SMI_BASE		(MSM_SMI_BASE)
-#define KERNEL_SMI_SIZE		0x700000
->>>>>>> cc00d7b... holiday: Add ION support
-=======
-#define KERNEL_SMI_BASE       (MSM_SMI_BASE)
-#define KERNEL_SMI_SIZE       0x500000
-
-#define MSM_SMI_BASE          (0x38000000)
-#define MSM_SMI_SIZE          (0x4000000)
->>>>>>> 2aba475... holiday: fixup the memory mapping to stop the FB trashing
-
-/* User space SMI PMEM Region for video core*/
-/* used for encoder, decoder input & output buffers  */
-#define USER_SMI_BASE         (KERNEL_SMI_BASE + KERNEL_SMI_SIZE)
-#define USER_SMI_SIZE         (MSM_SMI_SIZE - KERNEL_SMI_SIZE)
-#define MSM_PMEM_SMIPOOL_BASE USER_SMI_BASE
-#define MSM_PMEM_SMIPOOL_SIZE USER_SMI_SIZE
-
-/* PMEM Memory map */
-#define MSM_PMEM_ADSP_SIZE    0x1800000
-#define MSM_PMEM_AUDIO_SIZE   0x239000
-
-#define MSM_PMEM_AUDIO_BASE   (0x46400000)
-#define MSM_PMEM_ADSP_BASE    (0x70000000 - MSM_PMEM_ADSP_SIZE)
-
-/* END PMEM Memory map */
-
-/* ION Memory map */
-#define MSM_ION_HEAP_NUM      3
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-#define MSM_PMEM_SF_SIZE			0x2000000 /* 32 Mbytes */
-#define MSM_PMEM_ADSP_SIZE			0x2700000
-#define MSM_PMEM_ADSP2_SIZE			0x800000 /* 1152 * 1920 * 1.5 * 2 */
-#define MSM_PMEM_AUDIO_SIZE			0x239000
-#define MSM_PMEM_TZCOM_SIZE			0xC7000
-
-#define MSM_PMEM_SF_BASE			(0x40400000)
-#define MSM_PMEM_ADSP2_BASE			(0x80000000 - MSM_PMEM_ADSP2_SIZE)
-#define MSM_PMEM_ADSP_BASE			(MSM_PMEM_ADSP2_BASE - MSM_PMEM_ADSP_SIZE)
-#define MSM_PMEM_TZCOM_BASE			(MSM_PMEM_SF_BASE + MSM_PMEM_SF_SIZE)
-#define MSM_FB_WRITEBACK_BASE		(MSM_PMEM_TZCOM_BASE + MSM_PMEM_TZCOM_SIZE)
-#define MSM_FB_BASE					(MSM_FB_WRITEBACK_BASE + MSM_FB_WRITEBACK_SIZE)
-#define MSM_PMEM_AUDIO_BASE			(MSM_FB_BASE + MSM_FB_SIZE)
-
-#define MSM_SMI_BASE				0x38000000
-#define MSM_SMI_SIZE				0x4000000
-
-/* Kernel SMI PMEM Region for video core, used for Firmware */
-/* and encoder, decoder scratch buffers */
-/* Kernel SMI PMEM Region Should always precede the user space */
-/* SMI PMEM Region, as the video core will use offset address */
-/* from the Firmware base */
-#define KERNEL_SMI_BASE			 (MSM_SMI_BASE)
-#define KERNEL_SMI_SIZE			 0x400000
-
-/* User space SMI PMEM Region for video core*/
-/* used for encoder, decoder input & output buffers  */
-#define USER_SMI_BASE			   (KERNEL_SMI_BASE + KERNEL_SMI_SIZE)
-#define USER_SMI_SIZE			   (MSM_SMI_SIZE - KERNEL_SMI_SIZE)
-#define MSM_PMEM_SMIPOOL_BASE	   USER_SMI_BASE
-#define MSM_PMEM_SMIPOOL_SIZE	   USER_SMI_SIZE
-=======
-#define PHY_BASE_ADDR1		0x48000000
-#define SIZE_ADDR1		0x23000000
->>>>>>> cc00d7b... holiday: Add ION support
-=======
-#define MSM_PMEM_ADSP_SIZE    0x1800000
-#define MSM_PMEM_AUDIO_SIZE   0x239000
-
-=======
->>>>>>> 1cc12fb... holiday: cleanup the comments and order for memory heap defines
-#define MSM_ION_SF_SIZE       0x29A0000
-#define MSM_ION_WB_SIZE       0x2FD000  /* MSM_OVERLAY_BLT_SIZE */
-
-#define MSM_ION_SF_BASE       (0x40400000)
-#define MSM_ION_WB_BASE       (0x45C00000)
-
-/* END ION Memory map */
->>>>>>> 2aba475... holiday: fixup the memory mapping to stop the FB trashing
-
-=======
->>>>>>> 28018be... holiday: massive remap of memory heaps.
 static unsigned fb_size;
 static int __init fb_size_setup(char *p)
 {
@@ -2379,18 +2265,6 @@ static struct platform_device android_pmem_adsp_device = {
         .name = "android_pmem",
         .id = 2,
         .dev = { .platform_data = &android_pmem_adsp_pdata },
-};
-
-static struct android_pmem_platform_data android_pmem_adsp2_pdata = {
-	.name = "pmem_adsp2",
-	.allocator_type = PMEM_ALLOCATORTYPE_BITMAP,
-	.cached = 0,
-};
-
-static struct platform_device android_pmem_adsp2_device = {
-	.name = "android_pmem",
-	.id = 3,
-	.dev = { .platform_data = &android_pmem_adsp2_pdata },
 };
 
 static struct android_pmem_platform_data android_pmem_audio_pdata = {
@@ -2615,25 +2489,11 @@ static void __init msm8x60_allocate_memory_regions(void)
                         size, addr, __pa(addr));
 
 #ifdef CONFIG_FB_MSM_OVERLAY_WRITEBACK
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 2a397c7... holiday: ION: rebase and cleanup.
         size = MSM_FB_WRITEBACK_SIZE;
         msm_fb_resources[1].start = MSM_FB_WRITEBACK_BASE;
         msm_fb_resources[1].end = msm_fb_resources[1].start + size - 1;
         pr_info("allocating %lu bytes at 0x%p (0x%lx physical) for overlay\n",
                 size, __va(MSM_FB_WRITEBACK_BASE), (unsigned long) MSM_FB_WRITEBACK_BASE);
-<<<<<<< HEAD
-=======
-	size = MSM_FB_WRITEBACK_SIZE;
-	msm_fb_resources[1].start = MSM_FB_WRITEBACK_BASE;
-	msm_fb_resources[1].end = msm_fb_resources[1].start + size - 1;
-	pr_info("allocating %lu bytes at 0x%p (0x%lx physical) for overlay\n",
-		size, __va(MSM_FB_WRITEBACK_BASE), (unsigned long) MSM_FB_WRITEBACK_BASE);
->>>>>>> cc00d7b... holiday: Add ION support
-=======
->>>>>>> 2a397c7... holiday: ION: rebase and cleanup.
 #endif
 }
 
@@ -3362,9 +3222,9 @@ static struct regulator_consumer_supply vreg_consumers_PM8901_S4_PC[] = {
 
 /* RPM early regulator constraints */
 static struct rpm_regulator_init_data rpm_regulator_early_init_data[] = {
-	/*	 ID	   a_on pd ss min_uV   max_uV   init_ip	freq */
-	RPM_SMPS(PM8058_S0, 0, 1, 1,  500000, 1250000, SMPS_HMIN, 1p92),
-	RPM_SMPS(PM8058_S1, 0, 1, 1,  500000, 1250000, SMPS_HMIN, 1p92),
+	/*	 ID       a_on pd ss min_uV   max_uV   init_ip    freq */
+	RPM_SMPS(PM8058_S0, 0, 1, 1,  500000, 1450000, SMPS_HMIN, 1p92),
+	RPM_SMPS(PM8058_S1, 0, 1, 1,  500000, 1450000, SMPS_HMIN, 1p92),
 };
 
 /* RPM regulator constraints */
@@ -3490,9 +3350,11 @@ static struct platform_device *early_devices[] __initdata = {
 	&msm_device_dmov_adm1,
 };
 
-static struct platform_device msm_tsens_device = {
-	.name   = "tsens-tm",
-	.id = -1,
+static struct tsens_platform_data hol_tsens_pdata  = {
+		.tsens_factor		= 1000,
+		.hw_type		= MSM_8660,
+		.tsens_num_sensor	= 6,
+		.slope 			= 702,
 };
 
 #if defined(CONFIG_GPIO_SX150X) || defined(CONFIG_GPIO_SX150X_MODULE)
@@ -6937,13 +6799,13 @@ static struct platform_device *holiday_devices[] __initdata = {
 
 #if defined(CONFIG_USB_GADGET_MSM_72K) || defined(CONFIG_USB_EHCI_HCD)
 	&msm_device_otg,
+	&msm_device_hsusb_host,
 #endif
 #ifdef CONFIG_BATTERY_MSM
 	&msm_batt_device,
 #endif
 #ifdef CONFIG_ANDROID_PMEM
 	&android_pmem_adsp_device,
-	&android_pmem_adsp2_device,
 	&android_pmem_audio_device,
 	&android_pmem_smipool_device,
 #endif
@@ -7011,9 +6873,8 @@ static struct platform_device *holiday_devices[] __initdata = {
 	&msm_device_rng,
 #endif
 
-	&msm_tsens_device,
+	//&msm_tsens_device,
 	&msm_rpm_device,
-
 #ifdef CONFIG_BATTERY_MSM8X60
 	&msm_charger_device,
 #endif
@@ -7062,22 +6923,6 @@ static struct memtype_reserve msm8x60_reserve_table[] __initdata = {
         [MEMTYPE_EBI1] = {
                 .flags        =        MEMTYPE_FLAGS_1M_ALIGN,
         },
-<<<<<<< HEAD
-	[MEMTYPE_EBI0] = {
-		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
-	},
-	[MEMTYPE_EBI1] = {
-<<<<<<< HEAD
-		.start	=	MSM_PMEM_TZCOM_BASE,
-		.limit	=	MSM_PMEM_TZCOM_SIZE,
-		.size	=	MSM_PMEM_TZCOM_SIZE,
-		.flags	=	MEMTYPE_FLAGS_FIXED,
-=======
-		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
->>>>>>> cc00d7b... holiday: Add ION support
-	},
-=======
->>>>>>> 2a397c7... holiday: ION: rebase and cleanup.
 };
 
 #ifdef CONFIG_ANDROID_PMEM
@@ -7093,16 +6938,9 @@ static void __init size_pmem_device(struct android_pmem_platform_data *pdata, un
 static void __init size_pmem_devices(void)
 {
 #ifdef CONFIG_ANDROID_PMEM
-<<<<<<< HEAD
-	size_pmem_device(&android_pmem_adsp_pdata, MSM_PMEM_ADSP_BASE, pmem_adsp_size);
-	size_pmem_device(&android_pmem_adsp2_pdata, MSM_PMEM_ADSP2_BASE, MSM_PMEM_ADSP2_SIZE);
-	size_pmem_device(&android_pmem_smipool_pdata, MSM_PMEM_SMIPOOL_BASE, MSM_PMEM_SMIPOOL_SIZE);
-	size_pmem_device(&android_pmem_audio_pdata, MSM_PMEM_AUDIO_BASE, MSM_PMEM_AUDIO_SIZE);
-=======
         size_pmem_device(&android_pmem_adsp_pdata, MSM_PMEM_ADSP_BASE, pmem_adsp_size);
         size_pmem_device(&android_pmem_smipool_pdata, MSM_PMEM_SMIPOOL_BASE, MSM_PMEM_SMIPOOL_SIZE);
         size_pmem_device(&android_pmem_audio_pdata, MSM_PMEM_AUDIO_BASE, MSM_PMEM_AUDIO_SIZE);
->>>>>>> 2a397c7... holiday: ION: rebase and cleanup.
 #endif
 }
 
@@ -7239,6 +7077,7 @@ static void __init msm8x60_init(struct msm_board_data *board_data)
 
 	board_get_sku_color_tag(&sku_color);
 
+
 	if (sku_color != NULL) {
 		if (strcmp(sku_color, "WhiteColor") == 0) {
 			cm3628_pdata.levels[0] = 7;
@@ -7249,6 +7088,8 @@ static void __init msm8x60_init(struct msm_board_data *board_data)
 			pr_info("Not WhiteColor HOY\n");
 	} else
 		pr_info("Hboot need to update to detect WhiteColor HOY version\n");
+
+	msm_tsens_early_init(&hol_tsens_pdata);
 
 	/*
 	 * Initialize RPM first as other drivers and devices may need
@@ -7319,18 +7160,23 @@ static void __init msm8x60_init(struct msm_board_data *board_data)
 	acpuclk_init(&acpuclk_8x60_soc_data);
 
 #ifdef CONFIG_PERFLOCK
-	if (holiday_perf_acpu_table_1188k[PERF_LOCK_HIGHEST] == get_max_cpu_freq() * 1000) {
-		holiday_perflock_data.perf_acpu_table = holiday_perf_acpu_table_1188k;
-		holiday_perflock_data.table_size = ARRAY_SIZE(holiday_perf_acpu_table_1188k);
-	} else {
-		holiday_perflock_data.perf_acpu_table = holiday_perf_acpu_table_1512k;
-		holiday_perflock_data.table_size = ARRAY_SIZE(holiday_perf_acpu_table_1512k);
-	}
 	perflock_init(&holiday_perflock_data);
+	cpufreq_ceiling_init(&holiday_cpufreq_ceiling_data);
 #endif
 
 #ifdef CONFIG_CPU_FREQ_GOV_ONDEMAND_2_PHASE
 	set_two_phase_freq(1134000);
+#endif
+#ifdef CONFIG_CPU_FREQ_GOV_INTELLIDEMAND
+	id_set_two_phase_freq(1134000);
+#endif
+
+#ifdef CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE
+	set_two_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_2_PHASE_FREQ);
+#endif
+
+#ifdef CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE
+	set_three_phase_freq_badass(CONFIG_CPU_FREQ_GOV_BADASS_3_PHASE_FREQ);
 #endif
 
 	msm8x60_init_tlmm();
@@ -7434,15 +7280,12 @@ static void __init msm8x60_init(struct msm_board_data *board_data)
 
 	htc_monitor_init();
 	htc_PM_monitor_init();
-
-#if 0
-/* HTC fast charge */
+        /*
 	if (get_kernel_flag() & KERNEL_FLAG_ENABLE_FAST_CHARGE)
 		android_usb_pdata.enable_fast_charge = holiday_enable_fast_charge;
 	else
 		android_usb_pdata.enable_fast_charge = NULL;
-#endif
-
+        */
 	headset_device_register();
 }
 
@@ -7457,20 +7300,6 @@ static void __init holiday_init(void)
 	printk(KERN_INFO "%s revision=%d engineerid=%d\n", __func__, system_rev, engineerid);
 }
 
-<<<<<<< HEAD
-#define PHY_BASE_ADDR1  0x48000000
-<<<<<<< HEAD
-#define SIZE_ADDR1	  0x35100000
-=======
-#define SIZE_ADDR1	  0x32B00000
-<<<<<<< HEAD
-*/
->>>>>>> cc00d7b... holiday: Add ION support
-=======
->>>>>>> 2aba475... holiday: fixup the memory mapping to stop the FB trashing
-
-=======
->>>>>>> 28018be... holiday: massive remap of memory heaps.
 static void __init holiday_fixup(struct machine_desc *desc, struct tag *tags,
 				 char **cmdline, struct meminfo *mi)
 {
